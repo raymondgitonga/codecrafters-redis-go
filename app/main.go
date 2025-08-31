@@ -3,14 +3,14 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/codecrafters-io/redis-starter-go/cmdHandler"
+	"github.com/codecrafters-io/redis-starter-go/commands"
 	"github.com/codecrafters-io/redis-starter-go/parser"
+	"github.com/codecrafters-io/redis-starter-go/store"
 	"net"
 	"os"
 )
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
 
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
@@ -19,50 +19,58 @@ func main() {
 		os.Exit(1)
 	}
 
+	db := store.NewStore()
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
-		go handleConn(conn)
+		go handleConn(conn, db)
 	}
 }
 
-func handleConn(conn net.Conn) {
+func handleConn(conn net.Conn, ds *store.DataStore) {
 	defer conn.Close()
 
+	bw := bufio.NewWriter(conn)
+	writer := parser.NewWriter(bw)
+
 	br := bufio.NewReader(conn)
+	reader := parser.NewReader()
+
+	handler := commands.NewCommandHandler(ds, reader, writer)
+
 	for {
 		prefix, err := br.ReadByte()
 		if err != nil {
-			conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
+			_ = writer.Error(fmt.Errorf("-Error: %s", err.Error()))
+			return
 		}
 
 		switch prefix {
+
 		case '*':
-			cmd, err := parser.ArrayString(br)
+			cmd, err := reader.ArrayString(br)
 			if err != nil {
-				_, err := conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
-				if err != nil {
-					conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
-				}
+				_ = writer.Error(fmt.Errorf("protocol error: %v", err))
+				_ = writer.Flush()
+				return
 			}
 
-			resp, err := cmdHandler.Handle(cmd)
-			if err != nil {
-				_, err := conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
-				if err != nil {
-					conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
-				}
+			if err = handler.Handle(cmd); err != nil {
+				_ = writer.Error(err)
+				_ = writer.Flush()
+				return
 			}
 
-			conn.Write([]byte(resp))
+			if err := writer.Flush(); err != nil {
+				return
+			}
+
 		default:
-			_, err = conn.Write([]byte("-Error: unknown command"))
-			if err != nil {
-				conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
-			}
+			_ = writer.Error(fmt.Errorf("-Error: unknown command"))
+			_ = writer.Flush()
 			return
 		}
 	}

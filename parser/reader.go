@@ -7,7 +7,13 @@ import (
 	"strconv"
 )
 
-func ArrayString(br *bufio.Reader) ([]string, error) {
+type Reader struct{}
+
+func NewReader() *Reader {
+	return &Reader{}
+}
+
+func (r *Reader) ArrayString(br *bufio.Reader) ([]string, error) {
 	nStr, err := readLine(br)
 	if err != nil {
 		return nil, err

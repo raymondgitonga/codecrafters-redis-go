@@ -1,0 +1,45 @@
+package parser
+
+import (
+	"bufio"
+	"fmt"
+)
+
+type Writer struct {
+	bw *bufio.Writer
+}
+
+func NewWriter(bw *bufio.Writer) *Writer {
+	return &Writer{
+		bw: bw,
+	}
+}
+
+func (w *Writer) Flush() error { return w.bw.Flush() }
+
+func (w *Writer) SimpleString(s string) error {
+	resp := fmt.Sprintf("+%s\r\n", s)
+	_, err := w.bw.Write([]byte(resp))
+	return err
+}
+
+func (w *Writer) Error(error error) error {
+	_, err := fmt.Fprintf(w.bw, "-ERR %s\r\n", error.Error())
+	return err
+}
+
+func (w *Writer) Bulk(b []byte) error {
+	_, err := fmt.Fprintf(w.bw, "$%d\r\n", len(b))
+	if err != nil {
+		return err
+	}
+	if _, err = w.bw.Write(b); err != nil {
+		return err
+	}
+	_, err = w.bw.WriteString("\r\n")
+	return err
+}
+func (w *Writer) NullBulk() error {
+	_, err := w.bw.WriteString("$-1\r\n")
+	return err
+}
