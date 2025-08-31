@@ -3,9 +3,10 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/codecrafters-io/redis-starter-go/cmdHandler"
+	"github.com/codecrafters-io/redis-starter-go/parser"
 	"net"
 	"os"
-	"strings"
 )
 
 func main() {
@@ -31,13 +32,38 @@ func main() {
 func handleConn(conn net.Conn) {
 	defer conn.Close()
 
-	scanner := bufio.NewScanner(conn)
+	br := bufio.NewReader(conn)
+	for {
+		prefix, err := br.ReadByte()
+		if err != nil {
+			conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
+		}
 
-	for scanner.Scan() {
-		text := scanner.Text()
-		if strings.TrimSpace(text) == "PING" {
-			conn.Write([]byte("+PONG\r\n"))
+		switch prefix {
+		case '*':
+			cmd, err := parser.ArrayString(br)
+			if err != nil {
+				_, err := conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
+				if err != nil {
+					conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
+				}
+			}
+
+			resp, err := cmdHandler.Handle(cmd)
+			if err != nil {
+				_, err := conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
+				if err != nil {
+					conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
+				}
+			}
+
+			conn.Write([]byte(resp))
+		default:
+			_, err = conn.Write([]byte("-Error: unknown command"))
+			if err != nil {
+				conn.Write([]byte(fmt.Sprintf("-Error: %s", err)))
+			}
+			return
 		}
 	}
-
 }
