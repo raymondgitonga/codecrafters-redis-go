@@ -24,21 +24,29 @@ func (w *Writer) SimpleString(s string) error {
 }
 
 func (w *Writer) Error(error error) error {
-	_, err := fmt.Fprintf(w.bw, "-ERR %s\r\n", error.Error())
+	_, err := fmt.Fprintf(w.bw, "-ERROR %s\r\n", error.Error())
 	return err
 }
 
+// Bulk string is divided into three parts:
+// Length ie $d\r\n{length}
+// The byte response
+// CRF
 func (w *Writer) Bulk(b []byte) error {
+	// write length
 	_, err := fmt.Fprintf(w.bw, "$%d\r\n", len(b))
 	if err != nil {
 		return err
 	}
+	// write response
 	if _, err = w.bw.Write(b); err != nil {
 		return err
 	}
+	// add CRF
 	_, err = w.bw.WriteString("\r\n")
 	return err
 }
+
 func (w *Writer) NullBulk() error {
 	_, err := w.bw.WriteString("$-1\r\n")
 	return err

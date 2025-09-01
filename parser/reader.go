@@ -7,14 +7,18 @@ import (
 	"strconv"
 )
 
-type Reader struct{}
-
-func NewReader() *Reader {
-	return &Reader{}
+type Reader struct {
+	br *bufio.Reader
 }
 
-func (r *Reader) ArrayString(br *bufio.Reader) ([]string, error) {
-	nStr, err := readLine(br)
+func NewReader(br *bufio.Reader) *Reader {
+	return &Reader{
+		br: br,
+	}
+}
+
+func (r *Reader) ArrayString() ([]string, error) {
+	nStr, err := r.readLine()
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +30,7 @@ func (r *Reader) ArrayString(br *bufio.Reader) ([]string, error) {
 
 	args := make([]string, 0, n)
 	for i := 0; i < n; i++ {
-		b, err := br.ReadByte()
+		b, err := r.br.ReadByte()
 		if err != nil {
 			return nil, err
 		}
@@ -35,7 +39,7 @@ func (r *Reader) ArrayString(br *bufio.Reader) ([]string, error) {
 			return nil, fmt.Errorf("expected $ but got %c", b)
 		}
 
-		s, err := parseBulkString(br)
+		s, err := r.parseBulkString()
 		if err != nil {
 			return nil, err
 		}
@@ -44,8 +48,8 @@ func (r *Reader) ArrayString(br *bufio.Reader) ([]string, error) {
 	return args, nil
 }
 
-func parseBulkString(br *bufio.Reader) (string, error) {
-	lenStr, err := readLine(br)
+func (r *Reader) parseBulkString() (string, error) {
+	lenStr, err := r.readLine()
 	if err != nil {
 		return "", err
 	}
@@ -56,7 +60,7 @@ func parseBulkString(br *bufio.Reader) (string, error) {
 	}
 
 	buf := make([]byte, n+2) // include \r\n -> dont leave them in the buffer
-	_, err = io.ReadFull(br, buf)
+	_, err = io.ReadFull(r.br, buf)
 	if err != nil {
 		return "", err
 	}
@@ -64,8 +68,8 @@ func parseBulkString(br *bufio.Reader) (string, error) {
 	return string(buf[:n]), nil
 }
 
-func readLine(s *bufio.Reader) (string, error) {
-	b, err := s.ReadBytes('\n')
+func (r *Reader) readLine() (string, error) {
+	b, err := r.br.ReadBytes('\n')
 	if err != nil {
 		return "", err
 	}

@@ -37,7 +37,7 @@ func handleConn(conn net.Conn, ds *store.DataStore) {
 	writer := parser.NewWriter(bw)
 
 	br := bufio.NewReader(conn)
-	reader := parser.NewReader()
+	reader := parser.NewReader(br)
 
 	handler := commands.NewCommandHandler(ds, reader, writer)
 
@@ -51,7 +51,7 @@ func handleConn(conn net.Conn, ds *store.DataStore) {
 		switch prefix {
 
 		case '*':
-			cmd, err := reader.ArrayString(br)
+			cmd, err := reader.ArrayString()
 			if err != nil {
 				_ = writer.Error(fmt.Errorf("protocol error: %v", err))
 				_ = writer.Flush()

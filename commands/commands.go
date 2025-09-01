@@ -7,8 +7,9 @@ import (
 )
 
 type Store interface {
-	Set(key string, data []byte) error
+	Set(key string, data []byte, ex string) error
 	Get(key string) ([]byte, error)
+	Del(key string)
 }
 
 type Handler struct {
@@ -33,10 +34,15 @@ func (h *Handler) Handle(args []string) error {
 		s := strings.Join(args[1:], " ")
 		return h.Writer.SimpleString(s)
 	case "SET":
+		var expiry string
 		if len(args) < 3 {
 			return fmt.Errorf("not enough arguments")
 		}
-		err := h.Store.Set(args[1], []byte(args[2]))
+
+		if len(args) >= 4 {
+			expiry = args[4]
+		}
+		err := h.Store.Set(args[1], []byte(args[2]), expiry)
 		if err != nil {
 			return err
 		}
