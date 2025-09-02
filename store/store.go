@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -37,10 +38,43 @@ func NewStore() *DataStore {
 	}
 }
 
-func (d *DataStore) Set(key string, data any, ex string) (*int, error) {
+func (d *DataStore) SetString(key string, args []string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	var data string
+	var expiry string
+	if len(args) >= 3 {
+		expiry = args[2]
+		data = args[len(args)-3]
+	} else {
+		data = args[0]
+	}
+
+	_, err := d.set(key, data, expiry)
+	return err
+}
+
+func (d *DataStore) SetList(key string, data []string) (*int, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	baseData := data
+	var expiry string
+	if slices.Contains(data, "PX") || slices.Contains(data, "px") {
+		expiry = data[len(data)-1]
+		baseData = data[:len(data)-2]
+	}
+
+	size, err := d.set(key, baseData, expiry)
+	if err != nil {
+		return nil, err
+	}
+
+	return size, nil
+}
+
+func (d *DataStore) set(key string, data any, ex string) (*int, error) {
 	var size *int
 
 	switch v := data.(type) {

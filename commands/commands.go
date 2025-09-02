@@ -7,7 +7,8 @@ import (
 )
 
 type Store interface {
-	Set(key string, data any, ex string) (*int, error)
+	SetString(key string, data []string) error
+	SetList(key string, data []string) (*int, error)
 	Get(key string) (string, error)
 	Del(key string)
 }
@@ -34,34 +35,26 @@ func (h *Handler) Handle(args []string) error {
 		s := strings.Join(args[1:], " ")
 		return h.Writer.SimpleString(s)
 	case "SET":
-		var expiry string
 		if len(args) < 3 {
 			return fmt.Errorf("not enough arguments")
 		}
-		// Has expiry set
-		if len(args) >= 4 {
-			expiry = args[4]
-		}
-		size, err := h.Store.Set(args[1], args[2], expiry)
+
+		key := args[1]
+		value := args[2:]
+		err := h.Store.SetString(key, value)
 		if err != nil {
 			return err
 		}
 
-		if size != nil {
-			return h.Writer.Integer(*size)
-		}
 		return h.Writer.SimpleString("OK")
 	case "RPUSH":
-		var expiry string
 		if len(args) < 3 {
 			return fmt.Errorf("not enough arguments")
 		}
 
-		// Has expiry set
-		if len(args) >= 4 {
-			expiry = args[4]
-		}
-		size, err := h.Store.Set(args[1], []string{args[2]}, expiry)
+		key := args[1]
+		values := args[2:]
+		size, err := h.Store.SetList(key, values)
 		if err != nil {
 			return err
 		}
