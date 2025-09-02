@@ -23,6 +23,12 @@ func (w *Writer) SimpleString(s string) error {
 	return err
 }
 
+func (w *Writer) Integer(n int) error {
+	resp := fmt.Sprintf(":%d\r\n", n)
+	_, err := w.bw.Write([]byte(resp))
+	return err
+}
+
 func (w *Writer) Error(error error) error {
 	_, err := fmt.Fprintf(w.bw, "-ERROR %s\r\n", error.Error())
 	return err
@@ -32,14 +38,14 @@ func (w *Writer) Error(error error) error {
 // Length ie $d\r\n{length}
 // The byte response
 // CRF
-func (w *Writer) Bulk(b []byte) error {
+func (w *Writer) Bulk(b string) error {
 	// write length
 	_, err := fmt.Fprintf(w.bw, "$%d\r\n", len(b))
 	if err != nil {
 		return err
 	}
 	// write response
-	if _, err = w.bw.Write(b); err != nil {
+	if _, err = w.bw.Write([]byte(b)); err != nil {
 		return err
 	}
 	// add CRF

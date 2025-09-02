@@ -7,8 +7,8 @@ import (
 )
 
 type Store interface {
-	Set(key string, data []byte, ex string) error
-	Get(key string) ([]byte, error)
+	Set(key string, data any, ex string) (*int, error)
+	Get(key string) (string, error)
 	Del(key string)
 }
 
@@ -38,15 +38,39 @@ func (h *Handler) Handle(args []string) error {
 		if len(args) < 3 {
 			return fmt.Errorf("not enough arguments")
 		}
-
+		// Has expiry set
 		if len(args) >= 4 {
 			expiry = args[4]
 		}
-		err := h.Store.Set(args[1], []byte(args[2]), expiry)
+		size, err := h.Store.Set(args[1], args[2], expiry)
 		if err != nil {
 			return err
 		}
+
+		if size != nil {
+			return h.Writer.Integer(*size)
+		}
 		return h.Writer.SimpleString("OK")
+	case "RPUSH":
+		var expiry string
+		if len(args) < 3 {
+			return fmt.Errorf("not enough arguments")
+		}
+
+		// Has expiry set
+		if len(args) >= 4 {
+			expiry = args[4]
+		}
+		size, err := h.Store.Set(args[1], []string{args[2]}, expiry)
+		if err != nil {
+			return err
+		}
+
+		if size == nil {
+			return h.Writer.Error(fmt.Errorf("-Error: invalid list size returned"))
+		}
+
+		return h.Writer.Integer(*size)
 	case "GET":
 		value, err := h.Store.Get(args[1])
 		if err != nil {
