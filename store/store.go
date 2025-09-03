@@ -56,7 +56,7 @@ func (d *DataStore) SetString(key string, args []string) error {
 	return err
 }
 
-func (d *DataStore) SetList(key string, data []string) (*int, error) {
+func (d *DataStore) RPush(key string, data []string) (*int, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -71,6 +71,50 @@ func (d *DataStore) SetList(key string, data []string) (*int, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return size, nil
+}
+
+func (d *DataStore) LPush(key string, data []string) (*int, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	baseData := data
+	var expiry string
+	if slices.Contains(data, "PX") || slices.Contains(data, "px") {
+		expiry = data[len(data)-1]
+		baseData = data[:len(data)-2]
+	}
+
+	cur, ok := d.dict[key]
+	if ok && cur.Type != ListDataType {
+		return nil, fmt.Errorf("type mismatch: existing value is %v, not a list", cur.Type)
+	}
+
+	slices.Reverse(baseData)
+	combined := baseData
+	if ok {
+		combined = append(combined, cur.List...)
+	}
+
+	d.dict[key] = Data{
+		Type: ListDataType,
+		List: combined,
+	}
+
+	size := ptr.ToPointer(len(d.dict[key].List))
+
+	if expiry == "" {
+		delete(d.expTracker, key)
+		return size, nil
+	}
+
+	ttlMs, err := strconv.ParseInt(expiry, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid TTL: %w", err)
+	}
+	expireAtMs := time.Now().Add(time.Duration(ttlMs) * time.Millisecond).UnixMilli()
+	d.expTracker[key] = expireAtMs
 
 	return size, nil
 }

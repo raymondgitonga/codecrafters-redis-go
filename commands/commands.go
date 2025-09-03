@@ -10,7 +10,8 @@ type Store interface {
 	GetString(key string) (string, error)
 	GetList(key string, args []string) ([]string, error)
 	SetString(key string, data []string) error
-	SetList(key string, data []string) (*int, error)
+	RPush(key string, data []string) (*int, error)
+	LPush(key string, data []string) (*int, error)
 	Del(key string)
 }
 
@@ -63,7 +64,25 @@ func (h *Handler) Handle(args []string) error {
 		key := args[1]
 		values := args[2:]
 
-		size, err := h.Store.SetList(key, values)
+		size, err := h.Store.RPush(key, values)
+		if err != nil {
+			return err
+		}
+
+		if size == nil {
+			return h.Writer.Error(fmt.Errorf("-Error: invalid list size returned"))
+		}
+
+		return h.Writer.Integer(*size)
+	case "LPUSH":
+		if len(args) < 3 {
+			return fmt.Errorf("not enough arguments")
+		}
+
+		key := args[1]
+		values := args[2:]
+
+		size, err := h.Store.LPush(key, values)
 		if err != nil {
 			return err
 		}
