@@ -7,9 +7,10 @@ import (
 )
 
 type Store interface {
+	GetString(key string) (string, error)
+	GetList(key string, args []string) ([]string, error)
 	SetString(key string, data []string) error
 	SetList(key string, data []string) (*int, error)
-	Get(key string) (string, error)
 	Del(key string)
 }
 
@@ -26,6 +27,7 @@ func NewCommandHandler(store Store, r *parser.Reader, w *parser.Writer) *Handler
 		Writer: w,
 	}
 }
+
 func (h *Handler) Handle(args []string) error {
 	cmd := strings.ToUpper(args[0])
 	switch cmd {
@@ -34,6 +36,12 @@ func (h *Handler) Handle(args []string) error {
 	case "ECHO":
 		s := strings.Join(args[1:], " ")
 		return h.Writer.SimpleString(s)
+	case "GET":
+		value, err := h.Store.GetString(args[1])
+		if err != nil {
+			return h.Writer.NullBulk()
+		}
+		return h.Writer.BulkString(value)
 	case "SET":
 		if len(args) < 3 {
 			return fmt.Errorf("not enough arguments")
@@ -54,6 +62,7 @@ func (h *Handler) Handle(args []string) error {
 
 		key := args[1]
 		values := args[2:]
+
 		size, err := h.Store.SetList(key, values)
 		if err != nil {
 			return err
@@ -64,12 +73,22 @@ func (h *Handler) Handle(args []string) error {
 		}
 
 		return h.Writer.Integer(*size)
-	case "GET":
-		value, err := h.Store.Get(args[1])
-		if err != nil {
-			return h.Writer.NullBulk()
+	case "LRANGE":
+		if len(args) < 4 {
+			return fmt.Errorf("not enough arguments")
 		}
-		return h.Writer.Bulk(value)
+
+		key := args[1]
+		resp, err := h.Store.GetList(key, args[2:])
+		if err != nil {
+			return err
+		}
+
+		if len(resp) < 1 {
+			return h.Writer.EmptyString()
+		}
+
+		return h.Writer.Array(resp)
 	default:
 		return h.Writer.Error(fmt.Errorf("-Error: Unknown command"))
 	}

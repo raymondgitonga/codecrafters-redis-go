@@ -34,11 +34,11 @@ func (w *Writer) Error(error error) error {
 	return err
 }
 
-// Bulk string is divided into three parts:
+// BulkString string is divided into three parts:
 // Length ie $d\r\n{length}
 // The byte response
 // CRF
-func (w *Writer) Bulk(b string) error {
+func (w *Writer) BulkString(b string) error {
 	// write length
 	_, err := fmt.Fprintf(w.bw, "$%d\r\n", len(b))
 	if err != nil {
@@ -53,7 +53,31 @@ func (w *Writer) Bulk(b string) error {
 	return err
 }
 
+func (w *Writer) Array(arr []string) error {
+	// write length
+	_, err := fmt.Fprintf(w.bw, "*%d\r\n", len(arr))
+	if err != nil {
+		return err
+	}
+
+	for _, a := range arr {
+
+		_, err = fmt.Fprintf(w.bw, "$%d\r\n", len(a))
+		if err != nil {
+			return err
+		}
+
+		_, err = fmt.Fprintf(w.bw, "%s\r\n", a)
+	}
+	return err
+}
+
 func (w *Writer) NullBulk() error {
 	_, err := w.bw.WriteString("$-1\r\n")
+	return err
+}
+
+func (w *Writer) EmptyString() error {
+	_, err := w.bw.WriteString("*0\r\n")
 	return err
 }

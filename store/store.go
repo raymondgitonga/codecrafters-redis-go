@@ -119,7 +119,7 @@ func (d *DataStore) set(key string, data any, ex string) (*int, error) {
 	return size, nil
 }
 
-func (d *DataStore) Get(key string) (string, error) {
+func (d *DataStore) GetString(key string) (string, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -127,7 +127,7 @@ func (d *DataStore) Get(key string) (string, error) {
 		if time.Now().UnixMilli() >= expAt {
 			delete(d.dict, key)
 			delete(d.expTracker, key)
-			return "", ErrExpired
+			return "nil", ErrExpired
 		}
 	}
 
@@ -136,11 +136,57 @@ func (d *DataStore) Get(key string) (string, error) {
 		return "nil", fmt.Errorf("key %s not found", key)
 	}
 
-	if v.Type == StringDataType {
-		return v.Simple, nil
+	if v.Type != StringDataType {
+		return "nil", fmt.Errorf("invalid command for key specified %s", key)
 	}
 
-	return "", nil
+	return v.Simple, nil
+}
+
+func (d *DataStore) GetList(key string, args []string) ([]string, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if expAt, ok := d.expTracker[key]; ok && expAt > 0 {
+		if time.Now().UnixMilli() >= expAt {
+			delete(d.dict, key)
+			delete(d.expTracker, key)
+			return nil, ErrExpired
+		}
+	}
+
+	v, ok := d.dict[key]
+	if !ok {
+		return []string{}, nil
+	}
+
+	if v.Type != ListDataType {
+		return nil, fmt.Errorf("invalid command for key specified %s", key)
+	}
+
+	if len(args) > 1 {
+		start, err := strconv.Atoi(args[0])
+		if err != nil {
+			return nil, err
+		}
+		end, err := strconv.Atoi(args[1])
+		if err != nil {
+			return nil, err
+		}
+
+		if len(v.List) < end {
+			return v.List[start:], nil
+		}
+
+		return v.List[start : end+1], nil
+	}
+
+	start, err := strconv.Atoi(args[0])
+	if err != nil {
+		return nil, err
+	}
+
+	return v.List[start:], nil
 }
 
 func (d *DataStore) Del(key string) {
