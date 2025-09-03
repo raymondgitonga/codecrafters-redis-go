@@ -265,6 +265,25 @@ func (d *DataStore) LLen(key string) (int, error) {
 
 }
 
+func (d *DataStore) LPop(key string) (string, error) {
+	v, ok := d.dict[key]
+	if !ok {
+		return "", nil
+	}
+
+	if v.Type != ListDataType {
+		return "", fmt.Errorf("invalid command for key specified %s", key)
+	}
+
+	d.dict[key] = Data{
+		Type: ListDataType,
+		List: v.List[1:],
+	}
+
+	return v.List[0], nil
+
+}
+
 func (d *DataStore) Del(key string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()

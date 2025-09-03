@@ -13,6 +13,7 @@ type Store interface {
 	RPush(key string, data []string) (*int, error)
 	LPush(key string, data []string) (*int, error)
 	LLen(key string) (int, error)
+	LPop(key string) (string, error)
 	Del(key string)
 }
 
@@ -121,6 +122,18 @@ func (h *Handler) Handle(args []string) error {
 		}
 
 		return h.Writer.Integer(resp)
+	case "LPOP":
+		if len(args) < 2 {
+			return fmt.Errorf("not enough arguments")
+		}
+
+		key := args[1]
+		resp, err := h.Store.LPop(key)
+		if err != nil {
+			return err
+		}
+
+		return h.Writer.SimpleString(resp)
 	default:
 		return h.Writer.Error(fmt.Errorf("-Error: Unknown command"))
 	}
