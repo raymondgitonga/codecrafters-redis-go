@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"github.com/codecrafters-io/redis-starter-go/parser"
+	"strconv"
 	"strings"
 )
 
@@ -13,7 +14,7 @@ type Store interface {
 	RPush(key string, data []string) (*int, error)
 	LPush(key string, data []string) (*int, error)
 	LLen(key string) (int, error)
-	LPop(key string) (string, error)
+	LPop(key string, cnt int) ([]string, error)
 	Del(key string)
 }
 
@@ -128,12 +129,25 @@ func (h *Handler) Handle(args []string) error {
 		}
 
 		key := args[1]
-		resp, err := h.Store.LPop(key)
+
+		var cnt int
+		if len(args) > 2 {
+			c, err := strconv.Atoi(args[2])
+			if err != nil {
+				return err
+			}
+			cnt = c
+		}
+		resp, err := h.Store.LPop(key, cnt)
 		if err != nil {
 			return err
 		}
 
-		return h.Writer.SimpleString(resp)
+		if len(resp) <= 1 {
+			return h.Writer.SimpleString(resp[0])
+		}
+
+		return h.Writer.Array(resp)
 	default:
 		return h.Writer.Error(fmt.Errorf("-Error: Unknown command"))
 	}

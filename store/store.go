@@ -265,23 +265,34 @@ func (d *DataStore) LLen(key string) (int, error) {
 
 }
 
-func (d *DataStore) LPop(key string) (string, error) {
+func (d *DataStore) LPop(key string, cnt int) ([]string, error) {
 	v, ok := d.dict[key]
 	if !ok {
-		return "", nil
+		return nil, nil
 	}
 
 	if v.Type != ListDataType {
-		return "", fmt.Errorf("invalid command for key specified %s", key)
+		return nil, fmt.Errorf("invalid command for key specified %s", key)
 	}
+
+	if cnt <= 0 {
+		cnt = 1
+	}
+
+	if cnt > len(v.List) {
+		cnt = len(v.List)
+	}
+
+	popped := v.List[:cnt]
+
+	rest := v.List[cnt:]
 
 	d.dict[key] = Data{
 		Type: ListDataType,
-		List: v.List[1:],
+		List: rest,
 	}
 
-	return v.List[0], nil
-
+	return popped, nil
 }
 
 func (d *DataStore) Del(key string) {
