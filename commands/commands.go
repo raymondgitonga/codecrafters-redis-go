@@ -7,11 +7,12 @@ import (
 )
 
 type Store interface {
-	GetString(key string) (string, error)
-	GetList(key string, args []string) ([]string, error)
-	SetString(key string, data []string) error
+	Get(key string) (string, error)
+	Set(key string, data []string) error
+	LRange(key string, args []string) ([]string, error)
 	RPush(key string, data []string) (*int, error)
 	LPush(key string, data []string) (*int, error)
+	LLen(key string) (int, error)
 	Del(key string)
 }
 
@@ -38,7 +39,7 @@ func (h *Handler) Handle(args []string) error {
 		s := strings.Join(args[1:], " ")
 		return h.Writer.SimpleString(s)
 	case "GET":
-		value, err := h.Store.GetString(args[1])
+		value, err := h.Store.Get(args[1])
 		if err != nil {
 			return h.Writer.NullBulk()
 		}
@@ -50,7 +51,7 @@ func (h *Handler) Handle(args []string) error {
 
 		key := args[1]
 		value := args[2:]
-		err := h.Store.SetString(key, value)
+		err := h.Store.Set(key, value)
 		if err != nil {
 			return err
 		}
@@ -98,7 +99,7 @@ func (h *Handler) Handle(args []string) error {
 		}
 
 		key := args[1]
-		resp, err := h.Store.GetList(key, args[2:])
+		resp, err := h.Store.LRange(key, args[2:])
 		if err != nil {
 			return err
 		}
@@ -108,6 +109,18 @@ func (h *Handler) Handle(args []string) error {
 		}
 
 		return h.Writer.Array(resp)
+	case "LLEN":
+		if len(args) < 2 {
+			return fmt.Errorf("not enough arguments")
+		}
+
+		key := args[1]
+		resp, err := h.Store.LLen(key)
+		if err != nil {
+			return err
+		}
+
+		return h.Writer.Integer(resp)
 	default:
 		return h.Writer.Error(fmt.Errorf("-Error: Unknown command"))
 	}

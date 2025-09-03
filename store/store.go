@@ -39,7 +39,7 @@ func NewStore() *DataStore {
 	}
 }
 
-func (d *DataStore) SetString(key string, args []string) error {
+func (d *DataStore) Set(key string, args []string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -164,7 +164,7 @@ func (d *DataStore) set(key string, data any, ex string) (*int, error) {
 	return size, nil
 }
 
-func (d *DataStore) GetString(key string) (string, error) {
+func (d *DataStore) Get(key string) (string, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -188,7 +188,7 @@ func (d *DataStore) GetString(key string) (string, error) {
 	return v.Simple, nil
 }
 
-func (d *DataStore) GetList(key string, args []string) ([]string, error) {
+func (d *DataStore) LRange(key string, args []string) ([]string, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -249,6 +249,20 @@ func (d *DataStore) GetList(key string, args []string) ([]string, error) {
 	}
 
 	return v.List[start:], nil
+}
+
+func (d *DataStore) LLen(key string) (int, error) {
+	v, ok := d.dict[key]
+	if !ok {
+		return 0, nil
+	}
+
+	if v.Type != ListDataType {
+		return 0, fmt.Errorf("invalid command for key specified %s", key)
+	}
+
+	return len(v.List), nil
+
 }
 
 func (d *DataStore) Del(key string) {
