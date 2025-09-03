@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"github.com/codecrafters-io/redis-starter-go/utils/ptr"
 	"slices"
 	"strconv"
 	"sync"
@@ -99,7 +100,7 @@ func (d *DataStore) set(key string, data any, ex string) (*int, error) {
 			List: combined,
 		}
 
-		size = Ptr(len(d.dict[key].List))
+		size = ptr.ToPointer(len(d.dict[key].List))
 	default:
 		return nil, fmt.Errorf("invalid data type")
 	}
@@ -169,13 +170,30 @@ func (d *DataStore) GetList(key string, args []string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		if start < 0 {
+			start = len(v.List) + start
+		}
+
 		end, err := strconv.Atoi(args[1])
 		if err != nil {
 			return nil, err
 		}
 
-		if len(v.List) < end {
-			return v.List[start:], nil
+		if end < 0 {
+			end = len(v.List) + end
+		}
+
+		if start < 0 {
+			start = 0
+		}
+
+		if end >= len(v.List) {
+			end = len(v.List) - 1
+		}
+
+		if start > end || start >= len(v.List) {
+			return []string{}, nil
 		}
 
 		return v.List[start : end+1], nil
@@ -195,9 +213,4 @@ func (d *DataStore) Del(key string) {
 
 	delete(d.dict, key)
 	delete(d.expTracker, key)
-}
-
-// TODO: move this
-func Ptr[T any](v T) *T {
-	return &v
 }
