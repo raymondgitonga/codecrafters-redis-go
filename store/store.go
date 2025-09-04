@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/codecrafters-io/redis-starter-go/utils/ptr"
@@ -26,16 +27,18 @@ type Data struct {
 }
 
 type DataStore struct {
-	mu         sync.RWMutex
+	mu         sync.Mutex
 	dict       map[string]Data
 	expTracker map[string]int64
+	waiters    map[string][]chan string // FIFO per key
 }
 
 func NewStore() *DataStore {
 	return &DataStore{
-		mu:         sync.RWMutex{},
 		dict:       make(map[string]Data),
 		expTracker: make(map[string]int64),
+		mu:         sync.Mutex{},
+		waiters:    make(map[string][]chan string),
 	}
 }
 
@@ -59,6 +62,18 @@ func (d *DataStore) Set(key string, args []string) error {
 func (d *DataStore) RPush(key string, data []string) (*int, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	for _, v := range data {
+		if q := d.waiters[key]; len(q) > 0 {
+			//Get the first item in queue
+			ch := q[0]
+			// dequeue
+			d.waiters[key] = q[1:]
+			// add channel to its channel
+			ch <- v
+			continue
+		}
+	}
 
 	baseData := data
 	var expiry string
@@ -165,8 +180,8 @@ func (d *DataStore) set(key string, data any, ex string) (*int, error) {
 }
 
 func (d *DataStore) Get(key string) (string, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	if expAt, ok := d.expTracker[key]; ok && expAt > 0 {
 		if time.Now().UnixMilli() >= expAt {
@@ -189,8 +204,8 @@ func (d *DataStore) Get(key string) (string, error) {
 }
 
 func (d *DataStore) LRange(key string, args []string) ([]string, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	if expAt, ok := d.expTracker[key]; ok && expAt > 0 {
 		if time.Now().UnixMilli() >= expAt {
@@ -252,6 +267,9 @@ func (d *DataStore) LRange(key string, args []string) ([]string, error) {
 }
 
 func (d *DataStore) LLen(key string) (int, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	v, ok := d.dict[key]
 	if !ok {
 		return 0, nil
@@ -266,9 +284,53 @@ func (d *DataStore) LLen(key string) (int, error) {
 }
 
 func (d *DataStore) LPop(key string, cnt int) ([]string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	return d.lpop(key, cnt)
+}
+
+func (d *DataStore) BLPop(ctx context.Context, key string, _ int) ([]string, error) {
+	respChan := make(chan string, 1)
+
+	d.mu.Lock()
+	resp, err := d.lpop(key, 1)
+	if err != nil {
+		d.mu.Unlock()
+		return nil, err
+	}
+
+	if len(resp) > 0 {
+		d.mu.Unlock()
+		return append([]string{key}, resp...), nil
+	}
+
+	// Enqueue this waiter (FIFO)
+	d.waiters[key] = append(d.waiters[key], respChan)
+	d.mu.Unlock()
+
+	select {
+	case val := <-respChan:
+		return []string{key, val}, nil
+	case <-ctx.Done():
+		// Remove this waiter if still queued
+		d.mu.Lock()
+		q := d.waiters[key]
+		for i, w := range q {
+			if w == respChan {
+				d.waiters[key] = append(q[:i], q[i+1:]...)
+				break
+			}
+		}
+		d.mu.Unlock()
+		return nil, ctx.Err()
+	}
+}
+
+func (d *DataStore) lpop(key string, cnt int) ([]string, error) {
 	v, ok := d.dict[key]
 	if !ok {
-		return nil, nil
+		return []string{}, nil
 	}
 
 	if v.Type != ListDataType {

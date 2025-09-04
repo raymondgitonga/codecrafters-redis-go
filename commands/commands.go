@@ -1,10 +1,12 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"github.com/codecrafters-io/redis-starter-go/parser"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Store interface {
@@ -15,6 +17,7 @@ type Store interface {
 	LPush(key string, data []string) (*int, error)
 	LLen(key string) (int, error)
 	LPop(key string, cnt int) ([]string, error)
+	BLPop(ctx context.Context, key string, cnt int) ([]string, error)
 	Del(key string)
 }
 
@@ -145,6 +148,37 @@ func (h *Handler) Handle(args []string) error {
 
 		if len(resp) <= 1 {
 			return h.Writer.SimpleString(resp[0])
+		}
+
+		return h.Writer.Array(resp)
+	case "BLPOP":
+		if len(args) < 2 {
+			return fmt.Errorf("not enough arguments")
+		}
+
+		ctx := context.Background()
+		key := args[1]
+		timeoutSec, err := strconv.Atoi(args[2])
+		if err != nil {
+			return err
+		}
+
+		var timeout time.Duration
+		if timeoutSec > 0 {
+			timeout = time.Second * time.Duration(timeoutSec)
+			ctxWitchCancel, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+
+			ctx = ctxWitchCancel
+		}
+
+		resp, err := h.Store.BLPop(ctx, key, 0)
+		if err != nil {
+			return err
+		}
+
+		if len(resp) <= 1 {
+			return h.Writer.EmptyString()
 		}
 
 		return h.Writer.Array(resp)
