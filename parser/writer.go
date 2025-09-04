@@ -72,6 +72,11 @@ func (w *Writer) Array(arr []string) error {
 	return err
 }
 
+func (w *Writer) NullArray() error {
+	_, err := w.bw.WriteString("*-1\r\n")
+	return err
+}
+
 func (w *Writer) NullBulk() error {
 	_, err := w.bw.WriteString("$-1\r\n")
 	return err

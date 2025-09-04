@@ -108,4 +108,19 @@ func TestWriter(t *testing.T) {
 		got := buf.String()
 		assert.Equal(t, want, got)
 	})
+
+	t.Run("null array", func(t *testing.T) {
+		want := "*-1\r\n"
+
+		var buf bytes.Buffer
+		br := bufio.NewWriter(&buf)
+		w := NewWriter(br)
+
+		err := w.NullArray()
+		require.NoError(t, err)
+		require.NoError(t, w.Flush())
+
+		got := buf.String()
+		assert.Equal(t, want, got)
+	})
 }

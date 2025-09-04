@@ -310,8 +310,6 @@ func (d *DataStore) BLPop(ctx context.Context, key string, _ int) ([]string, err
 	d.mu.Unlock()
 
 	select {
-	case val := <-respChan:
-		return []string{key, val}, nil
 	case <-ctx.Done():
 		// Remove this waiter if still queued
 		d.mu.Lock()
@@ -324,6 +322,8 @@ func (d *DataStore) BLPop(ctx context.Context, key string, _ int) ([]string, err
 		}
 		d.mu.Unlock()
 		return nil, ctx.Err()
+	case val := <-respChan:
+		return []string{key, val}, nil
 	}
 }
 

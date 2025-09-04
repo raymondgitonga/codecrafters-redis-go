@@ -158,14 +158,14 @@ func (h *Handler) Handle(args []string) error {
 
 		ctx := context.Background()
 		key := args[1]
-		timeoutSec, err := strconv.Atoi(args[2])
+		timeoutSec, err := strconv.ParseFloat(args[2], 64)
 		if err != nil {
 			return err
 		}
 
 		var timeout time.Duration
 		if timeoutSec > 0 {
-			timeout = time.Second * time.Duration(timeoutSec)
+			timeout = time.Duration(timeoutSec * float64(time.Second))
 			ctxWitchCancel, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
@@ -174,7 +174,7 @@ func (h *Handler) Handle(args []string) error {
 
 		resp, err := h.Store.BLPop(ctx, key, 0)
 		if err != nil {
-			return err
+			return h.Writer.NullArray()
 		}
 
 		if len(resp) <= 1 {
