@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-var ErrExpired = errors.New("entry is expired")
+var (
+	ErrExpired     = errors.New("entry is expired")
+	ErrKeyNotFound = errors.New("key not found")
+)
 
 type DataType uint8
 
@@ -182,7 +185,10 @@ func (d *DataStore) set(key string, data any, ex string) (*int, error) {
 func (d *DataStore) Get(key string) (string, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return d.get(key)
+}
 
+func (d *DataStore) get(key string) (string, error) {
 	if expAt, ok := d.expTracker[key]; ok && expAt > 0 {
 		if time.Now().UnixMilli() >= expAt {
 			delete(d.dict, key)
@@ -193,14 +199,25 @@ func (d *DataStore) Get(key string) (string, error) {
 
 	v, ok := d.dict[key]
 	if !ok {
-		return "nil", fmt.Errorf("key %s not found", key)
+		return "", ErrKeyNotFound
 	}
 
 	if v.Type != StringDataType {
-		return "nil", fmt.Errorf("invalid command for key specified %s", key)
+		return "", fmt.Errorf("invalid command for key specified %s", key)
 	}
 
 	return v.Simple, nil
+}
+
+func (d *DataStore) Type(key string) (string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.get(key)
+	if errors.Is(err, ErrKeyNotFound) {
+		return "none", nil
+	}
+	return "string", nil
 }
 
 func (d *DataStore) LRange(key string, args []string) ([]string, error) {

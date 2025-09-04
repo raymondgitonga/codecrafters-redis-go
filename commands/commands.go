@@ -18,6 +18,7 @@ type Store interface {
 	LLen(key string) (int, error)
 	LPop(key string, cnt int) ([]string, error)
 	BLPop(ctx context.Context, key string, cnt int) ([]string, error)
+	Type(key string) (string, error)
 	Del(key string)
 }
 
@@ -182,6 +183,18 @@ func (h *Handler) Handle(args []string) error {
 		}
 
 		return h.Writer.Array(resp)
+	case "TYPE":
+		if len(args) < 2 {
+			return fmt.Errorf("not enough arguments")
+		}
+
+		key := args[1]
+		resp, err := h.Store.Type(key)
+		if err != nil {
+			return h.Writer.NullArray()
+		}
+
+		return h.Writer.SimpleString(resp)
 	default:
 		return h.Writer.Error(fmt.Errorf("-Error: Unknown command"))
 	}
